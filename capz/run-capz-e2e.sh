@@ -47,6 +47,8 @@ main() {
     set_azure_envs
     echo "3 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     set_ci_version
+    export CI_VERSION=$KUBE_GIT_VERSION
+    export KUBERNETES_VERSION=$KUBE_GIT_VERSION
     echo "4 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     IS_PRESUBMIT="$(capz::util::should_build_kubernetes)"
     echo "IS_PRESUBMIT=$IS_PRESUBMIT"
