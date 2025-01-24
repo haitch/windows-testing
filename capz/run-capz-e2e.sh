@@ -47,13 +47,19 @@ main() {
     set_azure_envs
     echo "3 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     set_ci_version
+    # haitao-hack: reset versions
     export CI_VERSION=$KUBE_GIT_VERSION
     export KUBERNETES_VERSION=$KUBE_GIT_VERSION
+    # haitao-hack-end: reset versions
     echo "4 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     IS_PRESUBMIT="$(capz::util::should_build_kubernetes)"
     echo "IS_PRESUBMIT=$IS_PRESUBMIT"
     if [[ "${IS_PRESUBMIT}" == "true" ]]; then
         "${CAPZ_DIR}/scripts/ci-build-kubernetes.sh";
+	# haitao-hack: reset versions
+        export CI_VERSION=$KUBE_GIT_VERSION
+        export KUBERNETES_VERSION=$KUBE_GIT_VERSION
+	# haitao-hack-end: reset versions
         trap run_capz_e2e_cleanup EXIT # reset the EXIT trap since ci-build-kubernetes.sh also sets it.
     fi
     if [[ "${GMSA}" == "true" ]]; then create_gmsa_domain; fi
