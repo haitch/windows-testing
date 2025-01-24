@@ -514,6 +514,7 @@ set_ci_version() {
     # select correct windows version for tests
     if [[ "$(capz::util::should_build_kubernetes)" == "true" ]]; then
         #todo - test this
+	echo "3.1 KUBERNETES_VERSION=$KUBERNETES_VERSION"
         : "${REGISTRY:?Environment variable empty or not defined.}"
         "${CAPZ_DIR}"/hack/ensure-acr-login.sh
 
@@ -525,9 +526,12 @@ set_ci_version() {
         # future - see https://github.com/kubernetes-sigs/cluster-api-provider-azure/pull/4172
         export AZURE_BLOB_CONTAINER_NAME="${AZURE_BLOB_CONTAINER_NAME:-${JOB_NAME}}"
     else
+        echo "3.2 KUBERNETES_VERSION=$KUBERNETES_VERSION"
         if [[ "${KUBERNETES_VERSION:-}" =~ "latest" ]]; then
+            echo "3.2.1 KUBERNETES_VERSION=$KUBERNETES_VERSION"
             CI_VERSION_URL="https://dl.k8s.io/ci/${KUBERNETES_VERSION}.txt"
         else
+	    echo "3.2.2 KUBERNETES_VERSION=$KUBERNETES_VERSION"
             CI_VERSION_URL="https://dl.k8s.io/ci/latest.txt"
         fi
         export CI_VERSION="${CI_VERSION:-$(curl -sSL "${CI_VERSION_URL}")}"
@@ -535,6 +539,7 @@ set_ci_version() {
 
         log "Selected Kubernetes version:"
         log "$KUBERNETES_VERSION"
+	echo "3.3 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     fi
 }
 
