@@ -364,10 +364,10 @@ apply_hyperv_configuration(){
 run_e2e_test() {
     export SKIP_TEST="${SKIP_TEST:-"false"}"
     if [[ ! "$SKIP_TEST" == "true" ]]; then
-        ## get test binaries (e2e.test and ginkgo)
+        ## get test binaries (e2e.test and ginkgo) - haitch: disabled
         ## https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
-        curl -L -o /tmp/kubernetes-test-linux-amd64.tar.gz https://storage.googleapis.com/k8s-release-dev/ci/"${CI_VERSION}"/kubernetes-test-linux-amd64.tar.gz
-        tar -xzvf /tmp/kubernetes-test-linux-amd64.tar.gz
+        ## curl -L -o /tmp/kubernetes-test-linux-amd64.tar.gz https://storage.googleapis.com/k8s-release-dev/ci/"${CI_VERSION}"/kubernetes-test-linux-amd64.tar.gz
+        ## tar -xzvf /tmp/kubernetes-test-linux-amd64.tar.gz
 
         if [[ "$IS_PRESUBMIT" == "true" ]]; then
             # get e2e.test from build artifacts produced by ci-build-kubernetes.sh if running a presubmit job
