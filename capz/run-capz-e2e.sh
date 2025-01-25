@@ -377,6 +377,9 @@ run_e2e_test() {
             log "Downloading e2e.test from $e2e_url"
             az storage blob download --blob-url $e2e_url -f "$PWD"/kubernetes/test/bin/e2e.test --auth-mode login
             chmod +x "$PWD/kubernetes/test/bin/e2e.test"
+
+            # haitch : install ginkgo
+	    GOBIN="$PWD/kubernetes/test/bin/" go install github.com/onsi/ginkgo/v2/ginkgo
         fi
 
         if [[ ! "${RUN_SERIAL_TESTS:-}" == "true" ]]; then
