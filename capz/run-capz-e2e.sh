@@ -39,6 +39,7 @@ main() {
     # other config
     export ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
     export CLUSTER_NAME="${CLUSTER_NAME:-capz-conf-$(head /dev/urandom | LC_ALL=C tr -dc a-z0-9 | head -c 6 ; echo '')}"
+    export CLUSTER_VERSION="${CLUSTER_VERSION:-"1.29"}"
     export IMAGE_SKU="${IMAGE_SKU:-"${WINDOWS_SERVER_VERSION:=windows-2019}-containerd-gen1"}"
     
     # CI is an environment variable set by a prow job: https://github.com/kubernetes/test-infra/blob/master/prow/jobs.md#job-environment-variables
@@ -186,7 +187,7 @@ create_cluster(){
                 --node-count 1 \
                 --generate-ssh-keys \
                 --vm-set-type VirtualMachineScaleSets \
-                --kubernetes-version 1.28.5 \
+                --kubernetes-version "${CLUSTER_VERSION}" \
                 --network-plugin azure \
                 --tags creationTimestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')")
             
@@ -203,7 +204,7 @@ create_cluster(){
                     --node-count 1 \
                     --generate-ssh-keys \
                     --vm-set-type VirtualMachineScaleSets \
-                    --kubernetes-version 1.28.5 \
+                    --kubernetes-version "${CLUSTER_VERSION}" \
                     --network-plugin azure \
                     --tags creationTimestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')")
             fi
