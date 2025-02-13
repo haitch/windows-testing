@@ -1,4 +1,4 @@
-$PACKAGES= @{ git = ""; golang = "1.21.6"; make = "" }
+$PACKAGES= @{ git = ""; golang = "1.23.6"; make = "" }
 
 Write-Host "Downloading chocolatey package"
 curl.exe -L "https://packages.chocolatey.org/chocolatey.0.10.15.nupkg" -o 'c:\choco.zip'
@@ -27,7 +27,12 @@ foreach ($package in $PACKAGES.Keys) {
 
 Write-Host "Set up environment."
 
-$userGoBin = "${env:HOME}\go\bin"
+if (${Env:HOME} -ne $null) {
+    $userGoBin = "${Env:HOME}\go\bin"
+} else {
+    $userGoBin = "${Env:HOMEPATH}\go\bin"
+}
+
 $path = ";c:\Program Files\Git\bin;c:\Program Files\Go\bin;${userGoBin};"
 $env:PATH+=$path
 
