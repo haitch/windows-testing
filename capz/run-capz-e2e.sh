@@ -278,7 +278,7 @@ create_cluster(){
 
 apply_workload_configuraiton(){
     log "wait for cluster to stabilize"
-    timeout --foreground 600 bash -c "until kubectl get --raw /version --request-timeout 5s > /dev/null 2>&1; do sleep 3; done"
+    timeout --foreground 1200 bash -c "until kubectl get --raw /version --request-timeout 5s > /dev/null 2>&1; do sleep 3; done"
     
     log "installing calico"
     "$TOOLS_BIN_DIR"/helm repo add projectcalico https://docs.tigera.io/calico/charts
