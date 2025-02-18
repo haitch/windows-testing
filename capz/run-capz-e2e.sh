@@ -20,7 +20,9 @@ fi
 
 main() {
     # defaults
+    echo "1 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     export KUBERNETES_VERSION="${KUBERNETES_VERSION:-"latest"}"
+    echo "2 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     export CONTROL_PLANE_MACHINE_COUNT="${AZURE_CONTROL_PLANE_MACHINE_COUNT:-"1"}"
     export WINDOWS_WORKER_MACHINE_COUNT="${WINDOWS_WORKER_MACHINE_COUNT:-"2"}"
     export WINDOWS_SERVER_VERSION="${WINDOWS_SERVER_VERSION:-"windows-2019"}"
@@ -37,18 +39,28 @@ main() {
     # other config
     export ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
     export CLUSTER_NAME="${CLUSTER_NAME:-capz-conf-$(head /dev/urandom | LC_ALL=C tr -dc a-z0-9 | head -c 6 ; echo '')}"
+    export CLUSTER_VERSION="${CLUSTER_VERSION:-"1.29"}"
     export IMAGE_SKU="${IMAGE_SKU:-"${WINDOWS_SERVER_VERSION:=windows-2019}-containerd-gen1"}"
     
     # CI is an environment variable set by a prow job: https://github.com/kubernetes/test-infra/blob/master/prow/jobs.md#job-environment-variables
     export CI="${CI:-""}"
 
     set_azure_envs
-
+    echo "3 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     set_ci_version
+    # haitao-hack: reset versions
+    export CI_VERSION=$KUBE_GIT_VERSION
+    export KUBERNETES_VERSION=$KUBE_GIT_VERSION
+    # haitao-hack-end: reset versions
+    echo "4 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     IS_PRESUBMIT="$(capz::util::should_build_kubernetes)"
     echo "IS_PRESUBMIT=$IS_PRESUBMIT"
     if [[ "${IS_PRESUBMIT}" == "true" ]]; then
         "${CAPZ_DIR}/scripts/ci-build-kubernetes.sh";
+	# haitao-hack: reset versions
+        export CI_VERSION=$KUBE_GIT_VERSION
+        export KUBERNETES_VERSION=$KUBE_GIT_VERSION
+	# haitao-hack-end: reset versions
         trap run_capz_e2e_cleanup EXIT # reset the EXIT trap since ci-build-kubernetes.sh also sets it.
     fi
     if [[ "${GMSA}" == "true" ]]; then create_gmsa_domain; fi
@@ -180,7 +192,7 @@ create_cluster(){
                 --node-count 1 \
                 --generate-ssh-keys \
                 --vm-set-type VirtualMachineScaleSets \
-                --kubernetes-version 1.31.3 \
+                --kubernetes-version "${CLUSTER_VERSION}" \
                 --network-plugin azure \
                 --tags creationTimestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')")
             
@@ -197,7 +209,7 @@ create_cluster(){
                     --node-count 1 \
                     --generate-ssh-keys \
                     --vm-set-type VirtualMachineScaleSets \
-                    --kubernetes-version 1.31.3 \
+                    --kubernetes-version "${CLUSTER_VERSION}" \
                     --network-plugin azure \
                     --tags creationTimestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')")
             fi
@@ -227,7 +239,7 @@ create_cluster(){
         export assignmentId # used in cleanup
 
         log "Install cluster api azure onto management cluster"
-        "$TOOLS_BIN_DIR"/clusterctl init --infrastructure azure
+        "$TOOLS_BIN_DIR"/clusterctl init --infrastructure azure --core cluster-api:$CAPI_VERSION --bootstrap kubeadm:$CAPI_VERSION --control-plane kubeadm:$CAPI_VERSION 
         log "wait for core CRDs to be installed"
         kubectl wait --for=condition=ready pod --all -n capz-system --timeout -300s
         # Wait for the core CRD resources to be "installed" onto the mgmt cluster before returning control
@@ -266,7 +278,7 @@ create_cluster(){
 
 apply_workload_configuraiton(){
     log "wait for cluster to stabilize"
-    timeout --foreground 300 bash -c "until kubectl get --raw /version --request-timeout 5s > /dev/null 2>&1; do sleep 3; done"
+    timeout --foreground 600 bash -c "until kubectl get --raw /version --request-timeout 5s > /dev/null 2>&1; do sleep 3; done"
     
     log "installing calico"
     "$TOOLS_BIN_DIR"/helm repo add projectcalico https://docs.tigera.io/calico/charts
@@ -364,10 +376,10 @@ apply_hyperv_configuration(){
 run_e2e_test() {
     export SKIP_TEST="${SKIP_TEST:-"false"}"
     if [[ ! "$SKIP_TEST" == "true" ]]; then
-        ## get test binaries (e2e.test and ginkgo)
+        ## get test binaries (e2e.test and ginkgo) - haitch: disabled
         ## https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
-        curl -L -o /tmp/kubernetes-test-linux-amd64.tar.gz https://storage.googleapis.com/k8s-release-dev/ci/"${CI_VERSION}"/kubernetes-test-linux-amd64.tar.gz
-        tar -xzvf /tmp/kubernetes-test-linux-amd64.tar.gz
+        ## curl -L -o /tmp/kubernetes-test-linux-amd64.tar.gz https://storage.googleapis.com/k8s-release-dev/ci/"${CI_VERSION}"/kubernetes-test-linux-amd64.tar.gz
+        ## tar -xzvf /tmp/kubernetes-test-linux-amd64.tar.gz
 
         if [[ "$IS_PRESUBMIT" == "true" ]]; then
             # get e2e.test from build artifacts produced by ci-build-kubernetes.sh if running a presubmit job
@@ -377,6 +389,9 @@ run_e2e_test() {
             log "Downloading e2e.test from $e2e_url"
             az storage blob download --blob-url $e2e_url -f "$PWD"/kubernetes/test/bin/e2e.test --auth-mode login
             chmod +x "$PWD/kubernetes/test/bin/e2e.test"
+
+            # haitch : install ginkgo
+	    GOBIN="$PWD/kubernetes/test/bin/" go install github.com/onsi/ginkgo/v2/ginkgo
         fi
 
         if [[ ! "${RUN_SERIAL_TESTS:-}" == "true" ]]; then
@@ -523,6 +538,7 @@ set_ci_version() {
     # select correct windows version for tests
     if [[ "$(capz::util::should_build_kubernetes)" == "true" ]]; then
         #todo - test this
+	echo "3.1 KUBERNETES_VERSION=$KUBERNETES_VERSION"
         : "${REGISTRY:?Environment variable empty or not defined.}"
         "${CAPZ_DIR}"/hack/ensure-acr-login.sh
 
@@ -534,9 +550,12 @@ set_ci_version() {
         # future - see https://github.com/kubernetes-sigs/cluster-api-provider-azure/pull/4172
         export AZURE_BLOB_CONTAINER_NAME="${AZURE_BLOB_CONTAINER_NAME:-${JOB_NAME}}"
     else
+        echo "3.2 KUBERNETES_VERSION=$KUBERNETES_VERSION"
         if [[ "${KUBERNETES_VERSION:-}" =~ "latest" ]]; then
+            echo "3.2.1 KUBERNETES_VERSION=$KUBERNETES_VERSION"
             CI_VERSION_URL="https://dl.k8s.io/ci/${KUBERNETES_VERSION}.txt"
         else
+	    echo "3.2.2 KUBERNETES_VERSION=$KUBERNETES_VERSION"
             CI_VERSION_URL="https://dl.k8s.io/ci/latest.txt"
         fi
         export CI_VERSION="${CI_VERSION:-$(curl -sSL "${CI_VERSION_URL}")}"
@@ -544,6 +563,7 @@ set_ci_version() {
 
         log "Selected Kubernetes version:"
         log "$KUBERNETES_VERSION"
+	echo "3.3 KUBERNETES_VERSION=$KUBERNETES_VERSION"
     fi
 }
 

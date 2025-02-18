@@ -216,6 +216,7 @@ spec:
           extraArgs:
             quota-backend-bytes: "8589934592"
       kubernetesVersion: ci/${CI_VERSION}
+      imageRepository: capzcirwbfdcup.azurecr.io
       scheduler:
         extraArgs:
           feature-gates: ${SCHEDULER_FEATURE_GATES:-""}
