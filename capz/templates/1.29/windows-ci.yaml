@@ -121,19 +121,12 @@ spec:
           kube-proxy.exe --version
         path: C:/replace-ci-binaries.ps1
         permissions: "0744"
-      - content: |
-          $ErrorActionPreference = 'Stop'
-          New-NetFirewallRule -DisplayName 'SSH-old-behavior' -Profile 'Any' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22
-        path: C:/ssh-setup.ps1
-        permissions: "0744"
       joinConfiguration:
         nodeRegistration:
           criSocket: npipe:////./pipe/containerd-containerd
           kubeletExtraArgs:
             cloud-provider: external
             feature-gates: ${NODE_FEATURE_GATES:-""}
-            image-credential-provider-bin-dir: /var/lib/kubelet/credential-provider
-            image-credential-provider-config: /var/lib/kubelet/credential-provider-config.yaml
             v: "2"
             windows-priorityclass: ABOVE_NORMAL_PRIORITY_CLASS
           name: '{{ ds.meta_data["local_hostname"] }}'
@@ -146,7 +139,6 @@ spec:
       - powershell C:/replace-containerd.ps1
       - powershell C:/collect-hns-crashes.ps1
       - powershell C:/replace-ci-binaries.ps1
-      - powershell C:/ssh-setup.ps1
       users:
       - groups: Administrators
         name: capi
@@ -210,6 +202,7 @@ spec:
     clusterConfiguration:
       apiServer:
         extraArgs:
+          cloud-provider: external
           feature-gates: ${API_SERVER_FEATURE_GATES:-""}
         timeoutForControlPlane: 20m
       controllerManager:
@@ -437,20 +430,15 @@ spec:
       annotations:
         runtime: containerd
     spec:
-      identity: UserAssigned
       image:
-        sharedGallery:
-          gallery: SigwinTestingImages
-          name: capi-windows-annual-containerd
-          resourceGroup: annual-channel
-          subscriptionID: ${AZURE_SUBSCRIPTION_ID}
-          version: ${IMAGE_VERSION:=0.3.1707767847}
+        computeGallery:
+          gallery: ClusterAPI-f72ceb4f-5159-4c26-a0fe-2ea738f0d019
+          name: ${GALLERY_IMAGE_NAME:=capi-win-2022-containerd}
+          version: ${IMAGE_VERSION:=latest}
       osDisk:
         diskSizeGB: 128
         managedDisk:
           storageAccountType: Premium_LRS
         osType: Windows
       sshPublicKey: ${AZURE_SSH_PUBLIC_KEY_B64:=""}
-      userAssignedIdentities:
-      - providerID: ${USER_IDENTITY}
       vmSize: ${AZURE_NODE_MACHINE_TYPE:-"Standard_D4s_v3"}

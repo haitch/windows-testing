@@ -41,6 +41,7 @@ main() {
     export CLUSTER_NAME="${CLUSTER_NAME:-capz-conf-$(head /dev/urandom | LC_ALL=C tr -dc a-z0-9 | head -c 6 ; echo '')}"
     export CLUSTER_VERSION="${CLUSTER_VERSION:-"1.29"}"
     export IMAGE_SKU="${IMAGE_SKU:-"${WINDOWS_SERVER_VERSION:=windows-2019}-containerd-gen1"}"
+    export GALLERY_IMAGE_NAME="${GALLERY_IMAGE_NAME:-"${WINDOWS_SERVER_VERSION//windows/capi-win}-containerd"}"
     
     # CI is an environment variable set by a prow job: https://github.com/kubernetes/test-infra/blob/master/prow/jobs.md#job-environment-variables
     export CI="${CI:-""}"
@@ -168,11 +169,17 @@ create_cluster(){
         # create cluster
         log "starting to create cluster"
 
+        # TODO remove once 1.29 is EOL
+        if [[ "${KUBERNETES_VERSION}" =~ ^v1\.29 ]]; then
+            template_root="$SCRIPT_ROOT"/templates/1.29
+        else
+            template_root="$SCRIPT_ROOT"/templates
+        fi
        
         # select correct template
-        template="$SCRIPT_ROOT"/templates/"$TEMPLATE"
+        template="$template_root"/"$TEMPLATE"
         if [[ "${IS_PRESUBMIT}" == "true" ]]; then
-            template="$SCRIPT_ROOT"/templates/windows-pr.yaml;
+            template="$template_root"/windows-pr.yaml;
         fi
         if [[ "${GMSA}" == "true" ]]; then
             if [[ "${IS_PRESUBMIT}" == "true" ]]; then
@@ -232,7 +239,11 @@ create_cluster(){
         log "applying role assignment to management cluster identity to have permissions to create workload cluster"
         MANAGEMENT_IDENTITY=$(az aks show -n "${CLUSTER_NAME}" -g "${CLUSTER_NAME}" --output json | jq -r '.identityProfile.kubeletidentity.clientId')
         export MANAGEMENT_IDENTITY
-        objectId=$(az aks show -n "${CLUSTER_NAME}" -g "${CLUSTER_NAME}" --output json  | jq -r '.identityProfile.kubeletidentity.objectId')
+        # For simplicity we will use the kubelet identity as the identity for the workload cluster as well
+        USER_IDENTITY=$(az aks show -n "${CLUSTER_NAME}" -g "${CLUSTER_NAME}" --output json | jq -r '.identityProfile.kubeletidentity.resourceId')
+        export USER_IDENTITY
+        
+        objectId=$(az aks show -n "${CLUSTER_NAME}" -g "${CLUSTER_NAME}" --output json | jq -r '.identityProfile.kubeletidentity.objectId')
         until assignmentId=$(az role assignment create --assignee-object-id "${objectId}" --role "Contributor" --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}" --assignee-principal-type ServicePrincipal --output json |jq -r .id); do
             sleep 5
         done
@@ -395,17 +406,18 @@ run_e2e_test() {
         fi
 
         if [[ ! "${RUN_SERIAL_TESTS:-}" == "true" ]]; then
+            # Default GINKGO settings for non-serial jobs
             export GINKGO_FOCUS=${GINKGO_FOCUS:-"\[Conformance\]|\[NodeConformance\]|\[sig-windows\]|\[sig-apps\].CronJob|\[sig-api-machinery\].ResourceQuota|\[sig-scheduling\].SchedulerPreemption"}
-            export GINKGO_SKIP=${GINKGO_SKIP:-"\[LinuxOnly\]|\[Serial\]|\[Slow\]|\[Excluded:WindowsDocker\]|\[Feature:DynamicResourceAllocation\]|Networking.Granular.Checks(.*)node-pod.communication|Guestbook.application.should.create.and.stop.a.working.application|device.plugin.for.Windows|Container.Lifecycle.Hook.when.create.a.pod.with.lifecycle.hook.should.execute(.*)http.hook.properly|\[sig-api-machinery\].Garbage.collector|pull.from.private.registry.with.secret"}
+            export GINKGO_SKIP=${GINKGO_SKIP:-"\[LinuxOnly\]|\[Serial\]|\[Slow\]|\[Excluded:WindowsDocker\]|\[Feature:DynamicResourceAllocation\]|Networking.Granular.Checks(.*)node-pod.communication|Guestbook.application.should.create.and.stop.a.working.application|device.plugin.for.Windows|Container.Lifecycle.Hook.when.create.a.pod.with.lifecycle.hook.should.execute(.*)http.hook.properly|\[sig-api-machinery\].Garbage.collector|\[Alpha\]|\[Beta\].\[Feature:OffByDefault\]"}
             export GINKGO_NODES="${GINKGO_NODES:-"4"}"
         else
             export GINKGO_FOCUS=${GINKGO_FOCUS:-"(\[sig-windows\]|\[sig-scheduling\].SchedulerPreemption|\[sig-autoscaling\].\[Feature:HPA\]|\[sig-apps\].CronJob).*(\[Serial\]|\[Slow\])|(\[Serial\]|\[Slow\]).*(\[Conformance\]|\[NodeConformance\])|\[sig-api-machinery\].Garbage.collector"}
-            export GINKGO_SKIP=${GINKGO_SKIP:-"\[LinuxOnly\]|\[Excluded:WindowsDocker\]|device.plugin.for.Windows"}
+            export GINKGO_SKIP=${GINKGO_SKIP:-"\[LinuxOnly\]|\[Excluded:WindowsDocker\]|device.plugin.for.Windows|should.be.able.to.gracefully.shutdown.pods.with.various.grace.periods|\[Alpha\]|\[Beta\].\[Feature:OffByDefault\]"}
             export GINKGO_NODES="${GINKGO_NODES:-"1"}"
         fi
 
         ADDITIONAL_E2E_ARGS=()
-        if [[ "$CI" == "true" && -n "${DOCKER_CONFIG_FILE:-""}" ]]; then
+        if [[ "$CI" == "true" ]]; then
             # private image repository doesn't have a way to promote images: https://github.com/kubernetes/k8s.io/pull/1929
             # So we are using a custom repository for the test "Container Runtime blackbox test when running a container with a new image should be able to pull from private registry with secret [NodeConformance]"
             # Must also set label preset-windows-private-registry-cred: "true" on the job
@@ -413,8 +425,7 @@ run_e2e_test() {
             # This will not work in community cluster as this secret is not present (hence we only do it if ENV is set)
             # On the community cluster we will use credential providers to a private registry in azure see:
             # https://github.com/kubernetes-sigs/windows-testing/issues/446
-            export KUBE_TEST_REPO_LIST="$SCRIPT_ROOT/../images/image-repo-list-private-registry"
-            ADDITIONAL_E2E_ARGS+=("--docker-config-file=${DOCKER_CONFIG_FILE}")
+            export KUBE_TEST_REPO_LIST="$SCRIPT_ROOT/../images/image-repo-list-private-registry-community"
         fi
 
         # K8s 1.24 and below use ginkgo v1 which has slighly different args
