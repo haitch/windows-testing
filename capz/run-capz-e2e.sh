@@ -247,6 +247,10 @@ create_cluster(){
         until assignmentId=$(az role assignment create --assignee-object-id "${objectId}" --role "Contributor" --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}" --assignee-principal-type ServicePrincipal --output json |jq -r .id); do
             sleep 5
         done
+        # this workload cluster identity need access to download from the blob storage, not a issue from upstream, but in LTS scope, our storage account cannot turn on annonymous access
+        until assignmentId=$(az role assignment create --assignee-object-id "${objectId}" --role "Storage Blob Data Contributor" --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}" --assignee-principal-type ServicePrincipal --output json |jq -r .id); do
+            sleep 5
+        done
         export assignmentId # used in cleanup
 
         log "Install cluster api azure onto management cluster"
