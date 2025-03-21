@@ -116,6 +116,8 @@ spec:
           kubectl.exe version --client=true
           kubelet.exe --version
           kube-proxy.exe --version
+          # update hosts file
+          Add-Content -Path 'C:\\Windows\\System32\\drivers\\etc\\hosts' -Value '10.0.0.4 ${CLUSTER_NAME}.${AZURE_LOCATION}.cloudapp.azure.com
         path: C:/replace-pr-binaries.ps1
         permissions: "0744"
       joinConfiguration:
@@ -333,6 +335,7 @@ spec:
     preKubeadmCommands:
     - bash -c /tmp/replace-k8s-binaries.sh
     useExperimentalRetryJoin: true
+    verbosity: 10
   machineTemplate:
     infrastructureRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
@@ -366,6 +369,13 @@ spec:
       role: node
     vnet:
       name: ${AZURE_VNET_NAME:=${CLUSTER_NAME}-vnet}
+    apiServerLB:
+      type: Public
+      frontendIPs:
+        - name: ${CLUSTER_NAME}-public-lb-frontEnd
+          publicIP:
+            name: pip-${CLUSTER_NAME}-apiserver
+            dnsName: ${CLUSTER_NAME}.${AZURE_LOCATION}.cloudapp.azure.com
   resourceGroup: ${AZURE_RESOURCE_GROUP:=${CLUSTER_NAME}}
   subscriptionID: ${AZURE_SUBSCRIPTION_ID}
 ---

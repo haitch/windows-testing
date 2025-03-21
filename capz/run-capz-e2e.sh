@@ -227,6 +227,8 @@ create_cluster(){
             export AZURE_LOCATION
         fi
 
+        az network public-ip create --resource-group "${CLUSTER_NAME}" --name "pip-${CLUSTER_NAME}-apiserver" --version IPv4 --sku Standard -l "$AZURE_LOCATION" --dns-name ${CLUSTER_NAME}
+
         az aks get-credentials --resource-group "${CLUSTER_NAME}" --name "${CLUSTER_NAME}" --overwrite-existing
 
         # some scenarios require knowing the vnet configuration of the management cluster in order to work in a restricted networking environment
