@@ -297,31 +297,8 @@ apply_workload_configuraiton(){
     log "wait for cluster to stabilize"
     timeout --foreground 1200 bash -c "until kubectl get --raw /version --request-timeout 5s > /dev/null 2>&1; do sleep 3; done"
     
-    log "installing calico"
-    "$TOOLS_BIN_DIR"/helm repo add projectcalico https://docs.tigera.io/calico/charts
-    kubectl create ns calico-system
-
-    if [[ "${IS_PRESUBMIT}" == "true" ]]; then
-        sleep 30s
-    fi
-    "$TOOLS_BIN_DIR"/helm upgrade calico projectcalico/tigera-operator --version "$CALICO_VERSION" --namespace tigera-operator -f "${CAPZ_DIR}"/templates/addons/calico/values.yaml  --create-namespace  --install --debug
-    timeout --foreground 300 bash -c "until kubectl get IPAMConfig -A > /dev/null 2>&1; do sleep 3; done"
-    # needed un
-    kubectl get configmap kubeadm-config --namespace=kube-system -o yaml | sed 's/namespace: kube-system/namespace: calico-system/' | kubectl apply --namespace=calico-system -f - || true
-
-    log "installing windows calico"
-    kubectl apply -f "${CAPZ_DIR}"/templates/addons/windows/calico/calico.yaml
-
-    # Only patch up kube-proxy if $WINDOWS_KPNG is unset
-    if [[ -z "$KPNG" ]]; then
-        log "installing kube-proxy for windows"
-        # apply kube-proxy for windows with a version (it doesn't matter what version it is replaced with the patch below)
-        KUBERNETES_VERSION=v1.30.1 "$TOOLS_BIN_DIR"/clusterctl generate yaml --from "${CAPZ_DIR}"/templates/addons/windows/calico/kube-proxy-windows.yaml | kubectl apply -f -
-
-        # A patch is needed to tell kube-proxy to use CI binaries.  This could go away once we have build scripts for kubeproxy HostProcess image.
-        kubectl apply -f "${CAPZ_DIR}"/templates/test/ci/patches/windows-kubeproxy-ci.yaml
-        kubectl rollout restart ds -n kube-system kube-proxy-windows
-    fi
+    log "installing flannel"
+    kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 
     # apply additional helper manifests (logger etc)
     kubectl apply -f "${CAPZ_DIR}"/templates/addons/windows/containerd-logging/containerd-logger.yaml
