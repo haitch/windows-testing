@@ -117,7 +117,7 @@ spec:
           kubelet.exe --version
           kube-proxy.exe --version
           # update hosts file
-          Add-Content -Path 'C:\\Windows\\System32\\drivers\\etc\\hosts' -Value '10.0.0.4 ${CLUSTER_NAME}.${AZURE_LOCATION}.cloudapp.azure.com
+          Add-Content -Path 'C:\\Windows\\System32\\drivers\\etc\\hosts' -Value '10.0.0.4 ${CLUSTER_NAME}.${AZURE_LOCATION}.cloudapp.azure.com'
         path: C:/replace-pr-binaries.ps1
         permissions: "0744"
       joinConfiguration:
